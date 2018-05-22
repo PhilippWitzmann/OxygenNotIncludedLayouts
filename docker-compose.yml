@@ -1,0 +1,89 @@
+version: '3.2'
+
+services:
+  php:
+    image: php
+    build:
+      context: ./api
+      cache_from:
+        - php
+    depends_on:
+      - db
+    env_file:
+      - ./api/.env
+
+  api:
+    image: nginx
+    build:
+      context: ./api
+      dockerfile: Dockerfile.nginx
+      cache_from:
+        - nginx
+    depends_on:
+      - php
+    volumes:
+      - ./api/public:/srv/api/public:ro
+    ports:
+      - "8080:80"
+
+  cache-proxy:
+    image: varnish
+    build:
+      context: ./api
+      dockerfile: Dockerfile.varnish
+      cache_from:
+        - varnish
+    depends_on:
+      - api
+    ports:
+      - "8081:80"
+
+  db:
+    # In production, you may want to use a managed database service
+    image: postgres:9.6-alpine
+    environment:
+      - POSTGRES_DB=api
+      - POSTGRES_USER=api-platform
+      # You should definitely change the password in production
+      - POSTGRES_PASSWORD=!ChangeMe!
+    volumes:
+      - db-data:/var/lib/postgresql/data:rw
+      # You may use a bind-mounted host directory instead, so that it is harder to accidentally remove the volume and lose all your data!
+      # - ./docker/db/data:/var/lib/postgresql/data:rw
+    ports:
+      - "5432:5432"
+
+  client:
+    # Use a static website hosting service in production
+    # See https://github.com/facebookincubator/create-react-app/blob/master/packages/react-scripts/template/README.md#deployment
+    image: client
+    build:
+      context: ./client
+      cache_from:
+        - client
+    env_file:
+      - ./client/.env
+    volumes:
+      - ./client:/usr/src/client:rw,cached
+      - /usr/src/client/node_modules
+    ports:
+      - "80:3000"
+
+  admin:
+    # Use a static website hosting service in production
+    # See https://github.com/facebookincubator/create-react-app/blob/master/packages/react-scripts/template/README.md#deployment
+    image: admin
+    build:
+      context: ./admin
+      cache_from:
+        - admin
+    env_file:
+      - ./admin/.env
+    volumes:
+      - ./admin:/usr/src/admin:rw,cached
+      - /usr/src/admin/node_modules
+    ports:
+      - "81:3000"
+
+volumes:
+  db-data: {}
